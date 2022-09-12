@@ -52,6 +52,7 @@ import io.airbyte.scheduler.persistence.job_factory.SyncJobFactory;
 import io.airbyte.scheduler.persistence.job_tracker.JobTracker;
 import io.airbyte.workers.general.DocumentStoreClient;
 import io.airbyte.workers.helper.ConnectionHelper;
+import io.airbyte.workers.helper.DbtCloudClientImpl;
 import io.airbyte.workers.normalization.NormalizationRunnerFactory;
 import io.airbyte.workers.process.DockerProcessFactory;
 import io.airbyte.workers.process.KubePortManagerSingleton;
@@ -76,6 +77,7 @@ import io.airbyte.workers.temporal.scheduling.activities.JobCreationAndStatusUpd
 import io.airbyte.workers.temporal.scheduling.activities.StreamResetActivityImpl;
 import io.airbyte.workers.temporal.spec.SpecActivityImpl;
 import io.airbyte.workers.temporal.spec.SpecWorkflowImpl;
+import io.airbyte.workers.temporal.sync.DbtCloudTransformationActivityImpl;
 import io.airbyte.workers.temporal.sync.DbtTransformationActivityImpl;
 import io.airbyte.workers.temporal.sync.NormalizationActivityImpl;
 import io.airbyte.workers.temporal.sync.PersistStateActivityImpl;
@@ -206,9 +208,11 @@ public class WorkerApp {
           defaultProcessFactory);
       final PersistStateActivityImpl persistStateActivity = new PersistStateActivityImpl(airbyteApiClient, featureFlags);
 
+      final DbtCloudTransformationActivityImpl dbtCloudTransformationActivity = getDbtCloudActivityImpl();
       for (final String taskQueue : configs.getDataSyncTaskQueues()) {
         final Worker worker = factory.newWorker(taskQueue, getWorkerOptions(configs.getMaxWorkers().getMaxSyncWorkers()));
-        worker.registerActivitiesImplementations(replicationActivity, normalizationActivity, dbtTransformationActivity, persistStateActivity);
+        worker.registerActivitiesImplementations(replicationActivity, normalizationActivity, dbtTransformationActivity,
+            dbtCloudTransformationActivity, persistStateActivity);
       }
     }
   }
@@ -305,6 +309,13 @@ public class WorkerApp {
         jobPersistence,
         airbyteApiClient,
         configs.getAirbyteVersionOrWarning());
+  }
+
+  private static DbtCloudTransformationActivityImpl getDbtCloudActivityImpl() {
+    return new DbtCloudTransformationActivityImpl(
+        new DbtCloudClientImpl(
+            "16791",
+            "dbts_w0O5SD8vDqB2wgMiu8V5oMRzApuLjC8P4F19ErP19Gucn_gcBsUSBc3g=="));
   }
 
   private static RouteToTaskQueueActivityImpl getRouteToTaskQueueActivityImpl() {

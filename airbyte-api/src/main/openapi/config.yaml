@@ -3598,6 +3598,7 @@ components:
         # - destination
         - normalization
         - dbt
+        - dbt_cloud
       # - docker
       # - webhook
     OperatorNormalization:

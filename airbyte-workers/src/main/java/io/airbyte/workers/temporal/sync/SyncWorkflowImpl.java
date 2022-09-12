@@ -8,6 +8,7 @@ import io.airbyte.config.Configs;
 import io.airbyte.config.EnvConfigs;
 import io.airbyte.config.NormalizationInput;
 import io.airbyte.config.NormalizationSummary;
+import io.airbyte.config.OperatorDbtCloud;
 import io.airbyte.config.OperatorDbtInput;
 import io.airbyte.config.ResourceRequirements;
 import io.airbyte.config.StandardSyncInput;
@@ -44,6 +45,7 @@ public class SyncWorkflowImpl implements SyncWorkflow {
     final NormalizationActivity normalizationActivity;
     final DbtTransformationActivity dbtTransformationActivity;
     final PersistStateActivity persistActivity;
+    final DbtCloudTransformationActivity dbtCloudTransformationActivity;
 
     /**
      * The current version calls a new activity to determine which Task Queue to use for other
@@ -64,10 +66,13 @@ public class SyncWorkflowImpl implements SyncWorkflow {
           Workflow.newActivityStub(NormalizationActivity.class, setTaskQueue(ActivityConfiguration.LONG_RUN_OPTIONS, dataPlaneTaskQueue));
       dbtTransformationActivity =
           Workflow.newActivityStub(DbtTransformationActivity.class, setTaskQueue(ActivityConfiguration.LONG_RUN_OPTIONS, dataPlaneTaskQueue));
+      dbtCloudTransformationActivity = Workflow.newActivityStub(DbtCloudTransformationActivity.class,
+          setTaskQueue(ActivityConfiguration.SHORT_ACTIVITY_OPTIONS, dataPlaneTaskQueue));
     } else {
       replicationActivity = Workflow.newActivityStub(ReplicationActivity.class, ActivityConfiguration.LONG_RUN_OPTIONS);
       normalizationActivity = Workflow.newActivityStub(NormalizationActivity.class, ActivityConfiguration.LONG_RUN_OPTIONS);
       dbtTransformationActivity = Workflow.newActivityStub(DbtTransformationActivity.class, ActivityConfiguration.LONG_RUN_OPTIONS);
+      dbtCloudTransformationActivity = Workflow.newActivityStub(DbtCloudTransformationActivity.class, ActivityConfiguration.SHORT_ACTIVITY_OPTIONS);
       persistActivity = Workflow.newActivityStub(PersistStateActivity.class, ActivityConfiguration.SHORT_ACTIVITY_OPTIONS);
     }
 
@@ -96,6 +101,11 @@ public class SyncWorkflowImpl implements SyncWorkflow {
               .withOperatorDbt(standardSyncOperation.getOperatorDbt());
 
           dbtTransformationActivity.run(jobRunConfig, destinationLauncherConfig, syncInput.getResourceRequirements(), operatorDbtInput);
+        } else if (standardSyncOperation.getOperatorType() == OperatorType.DBT_CLOUD) {
+          LOGGER.info("running dbt cloud job");
+          dbtCloudTransformationActivity
+              .runDbtCloud(new OperatorDbtCloud().withDbtWorkflowId(standardSyncOperation.getOperatorDbtCloud().getDbtWorkflowId()));
+          LOGGER.info("finished running dbt cloud");
         } else {
           final String message = String.format("Unsupported operation type: %s", standardSyncOperation.getOperatorType());
           LOGGER.error(message);
